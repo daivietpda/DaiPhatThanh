@@ -18,10 +18,59 @@ app.use(session({
     cookie: { maxAge: 24 * 60 * 60 * 1000 } 
 }));
 
-const USER_DB = {
-    username: "admin",
-    passwordHash: "$2b$10$EVMeg.knmL3pFHNMXs11Ju2I2TLM2fgBN6rQdiD19Pwk544545ta" 
-};
+const ADMIN_ACCOUNT_FILE = path.join(__dirname, 'admin-account.json');
+let USER_DB = null;
+
+function loadAdminAccountFromDB(filePath = ADMIN_ACCOUNT_FILE) {
+    try {
+        if (fs.existsSync(filePath)) {
+            const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            if (parsed && parsed.username && parsed.passwordHash) {
+                USER_DB = parsed;
+                return parsed;
+            }
+        }
+    } catch (err) {
+        console.error('Lỗi đọc admin-account:', err);
+    }
+
+    return null;
+}
+
+function saveAdminAccountToDB(account, filePath = ADMIN_ACCOUNT_FILE) {
+    fs.writeFileSync(filePath, JSON.stringify(account, null, 4), 'utf8');
+    USER_DB = account;
+    return account;
+}
+
+function loadOrInitAdminAccount(filePath = ADMIN_ACCOUNT_FILE) {
+    const existing = loadAdminAccountFromDB(filePath);
+    if (existing && existing.username && existing.passwordHash) {
+        return existing;
+    }
+    return null;
+}
+
+async function setAdminAccount({ username, password }, filePath = ADMIN_ACCOUNT_FILE) {
+    if (!username || !password) {
+        throw new Error('Tên đăng nhập và mật khẩu không được để trống.');
+    }
+
+    const account = {
+        username: username.trim(),
+        passwordHash: await bcrypt.hash(password, 10)
+    };
+
+    return saveAdminAccountToDB(account, filePath);
+}
+
+async function verifyAdminCredentials(username, password, filePath = ADMIN_ACCOUNT_FILE) {
+    const account = loadAdminAccountFromDB(filePath);
+    if (!account || !account.username || !account.passwordHash) return false;
+    return account.username === username && await bcrypt.compare(password, account.passwordHash);
+}
+
+loadOrInitAdminAccount();
 
 // --- CẤU HÌNH MQTT BROKER ---
 const MQTT_CONFIG_FILE = path.join(__dirname, 'mqtt-config.json');
@@ -137,7 +186,9 @@ function connectMqttBroker() {
     });
 }
 
-connectMqttBroker();
+if (require.main === module) {
+    connectMqttBroker();
+}
 
 function checkAuth(req, res, next) {
     if (req.session.loggedIn) next();
@@ -146,6 +197,7 @@ function checkAuth(req, res, next) {
 
 // Routes giao diện cơ bản
 app.get('/login', (req, res) => {
+    const hasAdmin = Boolean(USER_DB && USER_DB.username);
     res.send(`
         <!DOCTYPE html>
         <html lang="vi">
@@ -156,20 +208,31 @@ app.get('/login', (req, res) => {
             <style>
                 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
                 body { background: url('https://images.unsplash.com/photo-1598550476439-6847785fcea6?q=80&w=1920&auto=format&fit=crop') no-repeat center center fixed; background-size: cover; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-                .login-container { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); width: 100%; max-width: 400px; padding: 40px 25px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-                h2 { text-align: center; color: #1a1a1a; margin-bottom: 30px; }
-                input { width: 100%; padding: 14px; border: 1px solid #ccc; border-radius: 10px; font-size: 16px; margin-bottom: 20px; outline: none; }
-                button { width: 100%; padding: 16px; background: linear-gradient(135deg, #007bff, #0056b3); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; }
+                .login-container { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); width: 100%; max-width: 440px; padding: 40px 25px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+                h2 { text-align: center; color: #1a1a1a; margin-bottom: 20px; }
+                .note { color: #555; font-size: 13px; margin-bottom: 16px; text-align: center; }
+                input { width: 100%; padding: 14px; border: 1px solid #ccc; border-radius: 10px; font-size: 16px; margin-bottom: 14px; outline: none; }
+                button { width: 100%; padding: 14px; background: linear-gradient(135deg, #007bff, #0056b3); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; }
+                .form-separator { height: 1px; background: #e5e7eb; margin: 18px 0; }
             </style>
         </head>
         <body>
         <div class="login-container">
             <h2>🎙️ AUDIO SYSTEM</h2>
+            <p class="note">Đăng nhập bằng tài khoản quản trị hiện tại.</p>
             <form action="/login" method="POST">
                 <input type="text" name="username" placeholder="Tên đăng nhập" required />
                 <input type="password" name="password" placeholder="Mật khẩu" required />
                 <button type="submit">ĐĂNG NHẬP</button>
             </form>
+            <div class="form-separator"></div>
+            <form action="/register" method="POST">
+                <input type="text" name="username" placeholder="Tên tài khoản mới" required />
+                <input type="password" name="password" placeholder="Mật khẩu mới" required />
+                <input type="password" name="confirmPassword" placeholder="Nhập lại mật khẩu" required />
+                <button type="submit">ĐĂNG KÝ TÀI KHOẢN QUẢN TRỊ</button>
+            </form>
+            <p class="note" style="margin-top: 12px;">${hasAdmin ? 'Tài khoản quản trị đã tồn tại. Bạn có thể đổi tên và mật khẩu sau khi đăng nhập.' : 'Tài khoản quản trị đầu tiên sẽ được tạo tại đây.'}</p>
         </div>
         </body>
         </html>
@@ -178,12 +241,37 @@ app.get('/login', (req, res) => {
 
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
-    if (username === USER_DB.username && await bcrypt.compare(password, USER_DB.passwordHash)) {
+    if (await verifyAdminCredentials(username, password)) {
         req.session.loggedIn = true;
         res.redirect('/');
     } else {
-        res.send("<script>alert('Sai tài khoản!'); window.location='/login';</script>");
+        res.send("<script>alert('Sai tài khoản hoặc mật khẩu!'); window.location='/login';</script>");
     }
+});
+
+app.post('/register', async (req, res) => {
+    const { username, password, confirmPassword } = req.body;
+    if (!username || !password || !confirmPassword) {
+        return res.send("<script>alert('Vui lòng nhập đủ thông tin!'); window.location='/login';</script>");
+    }
+    if (password !== confirmPassword) {
+        return res.send("<script>alert('Mật khẩu nhập lại không khớp!'); window.location='/login';</script>");
+    }
+    try {
+        const existing = loadAdminAccountFromDB();
+        if (existing && existing.username && existing.passwordHash) {
+            return res.send("<script>alert('Tài khoản quản trị đã tồn tại. Vui lòng đổi tên/mật khẩu từ giao diện cài đặt.'); window.location='/login';</script>");
+        }
+        await setAdminAccount({ username, password });
+        res.send("<script>alert('Đăng ký tài khoản quản trị thành công!'); window.location='/login';</script>");
+    } catch (err) {
+        console.error(err);
+        res.send(`<script>alert('${err.message}'); window.location='/login';</script>`);
+    }
+});
+
+app.get('/logout', (req, res) => {
+    req.session.destroy(() => res.redirect('/login'));
 });
 
 app.get('/', checkAuth, (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
@@ -206,6 +294,36 @@ app.put('/api/mqtt-config', checkAuth, (req, res) => {
     saveMqttConfigToDB();
     connectMqttBroker();
     res.json({ success: true, mqttConfig: MQTT_CONFIG });
+});
+
+app.get('/api/admin/account', checkAuth, (req, res) => {
+    const account = loadAdminAccountFromDB();
+    res.json({ success: Boolean(account), username: account ? account.username : '' });
+});
+
+app.put('/api/admin/account', checkAuth, async (req, res) => {
+    const { currentPassword, username, newPassword, confirmPassword } = req.body;
+    try {
+        const currentAccount = loadAdminAccountFromDB();
+        if (!currentAccount || !currentAccount.username || !currentAccount.passwordHash) {
+            return res.status(404).json({ success: false, error: 'Chưa có tài khoản quản trị.' });
+        }
+        const validCurrentPassword = await bcrypt.compare(currentPassword || '', currentAccount.passwordHash);
+        if (!validCurrentPassword) {
+            return res.status(401).json({ success: false, error: 'Mật khẩu hiện tại không đúng.' });
+        }
+        if (!username || !username.trim()) {
+            return res.status(400).json({ success: false, error: 'Tên đăng nhập không được để trống.' });
+        }
+        if (newPassword && newPassword !== confirmPassword) {
+            return res.status(400).json({ success: false, error: 'Mật khẩu mới không khớp.' });
+        }
+        const finalPassword = newPassword && newPassword.trim() ? newPassword : currentPassword;
+        const updatedAccount = await setAdminAccount({ username: username.trim(), password: finalPassword });
+        res.json({ success: true, username: updatedAccount.username });
+    } catch (err) {
+        res.status(400).json({ success: false, error: err.message });
+    }
 });
 
 // API Thiết bị & Kênh nhanh
@@ -319,8 +437,10 @@ function checkSchedulesLoop() {
         }
     });
 }
-// Chạy quét cấu hình ngầm mỗi 30 giây để đảm bảo độ chính xác
-setInterval(checkSchedulesLoop, 30000);
+if (require.main === module) {
+    // Chạy quét cấu hình ngầm mỗi 30 giây để đảm bảo độ chính xác
+    setInterval(checkSchedulesLoop, 30000);
+}
 
 
 // API Điều khiển thủ công
@@ -349,4 +469,14 @@ app.post('/api/control', checkAuth, (req, res) => {
     res.status(400).json({ success: false });
 });
 
-app.listen(3000, () => console.log('Hệ thống đang chạy tại cổng 3000!'));
+if (require.main === module) {
+    app.listen(3000, () => console.log('Hệ thống đang chạy tại cổng 3000!'));
+}
+
+module.exports = {
+    app,
+    loadAdminAccountFromDB,
+    saveAdminAccountToDB,
+    setAdminAccount,
+    verifyAdminCredentials
+};

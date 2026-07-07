@@ -228,6 +228,30 @@
 
     <div id="tab-settings" class="tab-content">
         <div class="mqtt-settings-card">
+            <label>🔐 Tài khoản quản trị</label>
+            <div id="admin-account-status" style="margin-bottom: 10px; color: #555; font-size: 13px;">Đang tải thông tin quản trị...</div>
+            <div class="mqtt-settings-grid">
+                <div class="full">
+                    <label style="font-size: 13px; color: #555;">Mật khẩu hiện tại</label>
+                    <input type="password" id="adminCurrentPassword" placeholder="Nhập mật khẩu hiện tại">
+                </div>
+                <div>
+                    <label style="font-size: 13px; color: #555;">Tên đăng nhập mới</label>
+                    <input type="text" id="adminUsername" placeholder="admin">
+                </div>
+                <div>
+                    <label style="font-size: 13px; color: #555;">Mật khẩu mới</label>
+                    <input type="password" id="adminNewPassword" placeholder="Để trống nếu không đổi">
+                </div>
+                <div class="full">
+                    <label style="font-size: 13px; color: #555;">Nhập lại mật khẩu mới</label>
+                    <input type="password" id="adminConfirmPassword" placeholder="Nhập lại mật khẩu mới">
+                </div>
+            </div>
+            <button class="btn-global" onclick="saveAdminAccount()" style="margin-top: 12px;">🔐 ĐỔI TÊN / MẬT KHẨU QUẢN TRỊ</button>
+        </div>
+
+        <div class="mqtt-settings-card">
             <label>⚙️ Cấu hình MQTT Broker</label>
             <div class="mqtt-settings-grid">
                 <div>
@@ -338,6 +362,45 @@
             alert('Đã lưu cấu hình MQTT Broker. Hệ thống đang kết nối lại.');
         } else {
             alert('Không thể lưu cấu hình MQTT.');
+        }
+    }
+
+    async function loadAdminAccount() {
+        try {
+            const res = await fetch('/api/admin/account');
+            const data = await res.json();
+            const status = document.getElementById('admin-account-status');
+            if (status) {
+                status.textContent = data.success ? `Tài khoản hiện tại: ${data.username}` : 'Chưa có tài khoản quản trị được cấu hình.';
+            }
+            const usernameInput = document.getElementById('adminUsername');
+            if (usernameInput && data.success) usernameInput.value = data.username;
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function saveAdminAccount() {
+        const payload = {
+            currentPassword: document.getElementById('adminCurrentPassword').value,
+            username: document.getElementById('adminUsername').value.trim(),
+            newPassword: document.getElementById('adminNewPassword').value,
+            confirmPassword: document.getElementById('adminConfirmPassword').value
+        };
+        const res = await fetch('/api/admin/account', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('Đã cập nhật tài khoản quản trị thành công.');
+            document.getElementById('adminCurrentPassword').value = '';
+            document.getElementById('adminNewPassword').value = '';
+            document.getElementById('adminConfirmPassword').value = '';
+            loadAdminAccount();
+        } else {
+            alert(data.error || 'Không thể cập nhật tài khoản quản trị.');
         }
     }
 
@@ -642,6 +705,7 @@
         loadBoxes();
         loadChannels();
         loadSchedules();
+        loadAdminAccount();
     }
     loadMqttConfig();
     syncAllData();
