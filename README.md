@@ -54,7 +54,7 @@ Sau đó đăng xuất và đăng nhập lại.
 ### 1) Clone source
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/daivietpda/DaiPhatThanh.git
 cd DaiPhatThanh
 ```
 
