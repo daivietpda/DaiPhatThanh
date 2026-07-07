@@ -1,0 +1,22 @@
+[
+    {
+        "id": "ch_1783406438046",
+        "name": "🛠️ Kênh Luồng 1 (Test)",
+        "url": "http://192.168.1.3:8001/stream"
+    },
+    {
+        "id": "ch_1783406464782",
+        "name": "🚦 VOV Giao thông HN",
+        "url": "https://play.vovgiaothong.vn/live/gthn/playlist.m3u8"
+    },
+    {
+        "id": "ch_1783406483344",
+        "name": "🚦 VOVGT TP.HCM",
+        "url": "https://play.vovgiaothong.vn/live/gthcm/playlist.m3u8"
+    },
+    {
+        "id": "ch_1783406527948",
+        "name": "🎸 Bolero zeno.fm",
+        "url": "https://stream.zeno.fm/vgsusc7kw38uv"
+    }
+]

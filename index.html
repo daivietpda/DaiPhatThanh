@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#007bff">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Audio Controller">
+    <meta name="description" content="Web controller audio và phát nhạc qua MQTT">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Audio Controller">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icon-192.png">
+    <link rel="icon" href="/icon-192.png">
+    <title>Hệ Thống Quản Lý Audio</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 15px; background: url('https://images.unsplash.com/photo-1619983081563-430f63602796?q=80&w=1920&auto=format&fit=crop') no-repeat center center fixed; background-size: cover; color: #333; min-height: 100vh; }
+        .container { width: 100%; max-width: 750px; margin: 0 auto; background: rgba(255, 255, 255, 0.92); backdrop-filter: blur(12px); padding: 20px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+        h2 { text-align: center; color: #1a1a1a; margin-top: 0; font-size: 24px; font-weight: 800; margin-bottom: 20px;}
+        
+        .marquee-container { display: flex; align-items: center; background: #1e1e2f; color: #00e676; padding: 10px 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #2d2d44; }
+        .marquee-icon { font-size: 18px; margin-right: 12px; animation: spinMusic 3s linear infinite; }
+        #lastUrlMarquee { font-weight: 700; font-size: 14px; }
+        @keyframes spinMusic { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .tabs { display: flex; gap: 4px; margin-bottom: 20px; background: #e9ecef; padding: 6px; border-radius: 12px; flex-wrap: wrap; }
+        .tab-btn { flex: 1; padding: 12px 5px; background: transparent; border: none; border-radius: 8px; font-weight: 700; font-size: 13px; color: #6c757d; cursor: pointer; transition: all 0.3s ease; white-space: nowrap; }
+        .tab-btn.active { background: #ffffff; color: #007bff; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .tab-content { display: none; animation: fadeIn 0.3s ease; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Khung nhập liệu dùng chung */
+        .add-device-form { background: #f8f9fa; border: 1px dashed #adb5bd; padding: 15px; border-radius: 12px; margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;}
+        .add-device-form input, .add-device-form select { flex: 1; min-width: 140px; padding: 10px; border: 1px solid #ced4da; border-radius: 8px; font-size: 14px; outline: none; background: white;}
+        .btn-add { background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; white-space: nowrap;}
+        
+        /* Grid hiển thị */
+        #box-list-container, .quick-grid, #sched-list-container { display: grid; grid-template-columns: 1fr; gap: 12px; }
+        @media (min-width: 550px) { .quick-grid { grid-template-columns: 1fr 1fr; } }
+
+        .box-card, .channel-card, .sched-card { background: #ffffff; border: 1px solid #e1e4e8; padding: 14px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; position: relative; box-shadow: 0 2px 5px rgba(0,0,0,0.03); flex-wrap: wrap; gap: 10px;}
+        .box-info, .channel-main, .sched-main { flex-grow: 1; display: flex; align-items: center; gap: 8px; padding-right: 50px;}
+        .channel-card { align-items: flex-start; min-width: 0; }
+        .channel-main { flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; min-width: 0; overflow: hidden; padding-right: 40px; }
+        .sched-main { flex-direction: column; align-items: flex-start; gap: 2px;}
+        
+        .badge { width: 12px; height: 12px; border-radius: 50%; background-color: #dc3545; }
+        .badge.online { background-color: #28a745; box-shadow: 0 0 8px #28a745; }
+        .box-name, .channel-title, .sched-title { font-weight: 700; color: #2c3e50; font-size: 15px; }
+        .channel-title, .channel-url-text { width: 100%; overflow-wrap: anywhere; word-break: break-word; }
+        .channel-url-text, .sched-details { font-size: 12px; color: #6c757d; }
+        .channel-url-text { white-space: normal; }
+
+        .days-checkboxes { display: flex; gap: 8px; width: 100%; flex-wrap: wrap; background: #fff; padding: 10px; border-radius: 8px; border: 1px solid #ced4da; margin-top: 5px;}
+        .days-checkboxes label { font-size: 13px; font-weight: normal; cursor: pointer; display: flex; align-items: center; gap: 3px;}
+
+        .box-controls { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 6px; }
+        .vol-container { display: flex; align-items: center; gap: 4px; font-size: 14px; background: #f1f3f5; padding: 6px 10px; border-radius: 8px; flex-grow: 1; }
+        .vol-slider { width: 100%; cursor: pointer; height: 6px; }
+        .btn-reboot { background-color: #ffe0e3; color: #dc3545; border: 1px solid #dc3545; padding: 8px 10px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+        .box-actions, .channel-actions, .sched-actions { position: absolute; top: 12px; right: 12px; display: flex; gap: 4px; }
+        .btn-mini { border: none; background: transparent; cursor: pointer; font-size: 13px; opacity: 0.5; padding: 2px;}
+        .btn-mini:hover { opacity: 1; transform: scale(1.2); }
+
+        .form-group { margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
+        label { font-weight: bold; color: #444; font-size: 15px; }
+        input[type="text"], select { padding: 14px; border: 1px solid #d1d5da; border-radius: 10px; font-size: 15px; width: 100%; outline: none; background: #f8f9fa; }
+        .btn-global { background: linear-gradient(135deg, #007bff, #0056b3); color: white; border: none; padding: 16px; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; width: 100%; }
+        .btn-stop-large { background: #dc3545; color: white; border: none; padding: 16px; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; width: 100%; margin-top: 10px; }
+        .mqtt-settings-card { margin-top: 20px; background: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: 12px; }
+        .mqtt-settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+        .mqtt-settings-grid > div { min-width: 0; }
+        .mqtt-settings-grid .full { grid-column: 1 / -1; }
+        .mqtt-settings-grid input[type="number"], .mqtt-settings-grid input[type="text"], .mqtt-settings-grid input[type="password"] { width: 100%; min-width: 0; padding: 12px 12px; border: 1px solid #ced4da; border-radius: 10px; font-size: 14px; outline: none; background: #fff; }
+        .local-player-container { margin-top: 20px; background: rgba(0, 0, 0, 0.03); padding: 20px; border-radius: 12px; text-align: center; border: 1px dashed #adb5bd; }
+        audio { width: 100%; outline: none; margin-top: 12px; }
+
+        .install-card {
+            position: fixed;
+            left: 50%;
+            bottom: 16px;
+            transform: translateX(-50%) translateY(140%);
+            width: min(92vw, 520px);
+            background: linear-gradient(135deg, #0f172a, #1d4ed8);
+            color: #fff;
+            border-radius: 24px;
+            padding: 16px 16px 14px;
+            box-shadow: 0 16px 40px rgba(15, 23, 42, 0.35);
+            z-index: 9999;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .install-card.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .install-card__top {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        .install-card__icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            display: grid;
+            place-items: center;
+            font-size: 24px;
+            background: rgba(255,255,255,0.16);
+            flex-shrink: 0;
+        }
+        .install-card__title { font-size: 16px; font-weight: 800; margin: 0; }
+        .install-card__subtitle { font-size: 13px; color: rgba(255,255,255,0.84); margin: 2px 0 0; }
+        .install-card__actions { display: flex; gap: 8px; margin-top: 10px; }
+        .install-btn {
+            border: none;
+            border-radius: 999px;
+            padding: 9px 14px;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .install-btn--primary { background: #fff; color: #1d4ed8; }
+        .install-btn--ghost {
+            background: rgba(255,255,255,0.14);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .install-card__close {
+            margin-left: auto;
+            border: none;
+            background: transparent;
+            color: #fff;
+            font-size: 18px;
+            cursor: pointer;
+            opacity: 0.85;
+        }
+        .ios-instructions {
+            margin-top: 10px;
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.16);
+            border-radius: 14px;
+            padding: 10px 12px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .ios-instructions ol { margin: 6px 0 0 16px; padding: 0; }
+        .ios-instructions strong { display: block; margin-bottom: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🎙️ ĐIỀU KHIỂN AUDIO</h2>
+
+    <div class="marquee-container">
+        <span class="marquee-icon">🎵</span>
+        <marquee id="lastUrlMarquee" scrollamount="5">⏸️ Đang đồng bộ hóa dữ liệu...</marquee>
+    </div>
+
+    <div class="tabs">
+	    <button class="tab-btn active" onclick="openTab(event, 'tab-control')">🎛️ Tùy Chỉnh</button>
+        <button class="tab-btn" onclick="openTab(event, 'tab-channels')">⚡ Kênh Nhanh</button>
+        <button class="tab-btn" onclick="openTab(event, 'tab-schedules')">⏰ Hẹn Giờ</button>
+        <button class="tab-btn" onclick="openTab(event, 'tab-settings')">⚙️ Cài Đặt</button>
+        <button class="tab-btn" onclick="openTab(event, 'tab-devices')">📍 Thiết Bị</button>
+    </div>
+
+    <div id="tab-control" class="tab-content active">
+        <div class="form-group">
+            <label>🎯 Nhóm phát mục tiêu:</label>
+            <select id="targetBox"><option value="ALL">📢 Phát ĐỒNG LOẠT tất cả các khu</option></select>
+        </div>
+        <div class="form-group">
+            <label>🔗 Dán URL Nhạc / Luồng:</label>
+            <input type="text" id="streamUrl" placeholder="Ví dụ: https://link-nhac.mp3">
+            <button class="btn-global" onclick="playManualNoJump()">🚀 PHÁT NHẠC NGAY</button>
+        </div>
+        <button class="btn-stop-large" onclick="playQuick('OFF')">⛔ TẮT TOÀN BỘ NHẠC</button>
+        <div class="local-player-container">
+            <label>🎧 Nghe Kiểm Tra Gốc Trên Trình Duyệt</label>
+            <audio id="localPlayer" controls></audio>
+        </div>
+    </div>
+
+    <div id="tab-channels" class="tab-content">
+        <div class="add-device-form">
+            <input type="text" id="newChannelName" placeholder="Tên kênh (vd: VOV Giao Thông)">
+            <input type="text" id="newChannelUrl" placeholder="URL luồng phát">
+            <button class="btn-add" onclick="addChannel()">➕ Thêm Kênh</button>
+        </div>
+        <div class="quick-grid" id="channel-list-container"></div>
+    </div>
+
+    <div id="tab-schedules" class="tab-content">
+        <div class="add-device-form" style="flex-direction: column; align-items: stretch; gap: 8px;">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <input type="text" id="schedName" placeholder="Tên lịch trình (Ví dụ: Phát buổi sáng)" style="flex:2;">
+                <input type="time" id="schedTime" style="flex:1;">
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <select id="schedTarget"><option value="ALL">📢 Toàn bộ thiết bị</option></select>
+                <select id="schedChannel"><option value="OFF">⛔ Lệnh Tắt Nhạc (OFF)</option></select>
+            </div>
+            <div>
+                <label style="font-size:13px; color:#555;">📅 Chọn ngày lặp lại trong tuần:</label>
+                <div class="days-checkboxes">
+                    <label><input type="checkbox" name="schedDays" value="1" checked> T2</label>
+                    <label><input type="checkbox" name="schedDays" value="2" checked> T3</label>
+                    <label><input type="checkbox" name="schedDays" value="3" checked> T4</label>
+                    <label><input type="checkbox" name="schedDays" value="4" checked> T5</label>
+                    <label><input type="checkbox" name="schedDays" value="5" checked> T6</label>
+                    <label><input type="checkbox" name="schedDays" value="6"> T7</label>
+                    <label><input type="checkbox" name="schedDays" value="0"> CN</label>
+                </div>
+            </div>
+            <button class="btn-add" onclick="addSchedule()" style="margin-top: 5px;">⏰ Tạo Lịch Hẹn Giờ</button>
+        </div>
+        <div id="sched-list-container"></div>
+    </div>
+
+    <div id="tab-settings" class="tab-content">
+        <div class="mqtt-settings-card">
+            <label>⚙️ Cấu hình MQTT Broker</label>
+            <div class="mqtt-settings-grid">
+                <div>
+                    <label style="font-size: 13px; color: #555;">Host</label>
+                    <input type="text" id="mqttHost" placeholder="localhost">
+                </div>
+                <div>
+                    <label style="font-size: 13px; color: #555;">Port</label>
+                    <input type="number" id="mqttPort" placeholder="1883">
+                </div>
+                <div>
+                    <label style="font-size: 13px; color: #555;">Protocol</label>
+                    <input type="text" id="mqttProtocol" placeholder="mqtt">
+                </div>
+                <div>
+                    <label style="font-size: 13px; color: #555;">Username</label>
+                    <input type="text" id="mqttUsername" placeholder="mqtt-user">
+                </div>
+                <div>
+                    <label style="font-size: 13px; color: #555;">Tiền tố topic</label>
+                    <input type="text" id="mqttTopicPrefix" placeholder="daivietpda">
+                </div>
+                <div class="full">
+                    <label style="font-size: 13px; color: #555;">Password</label>
+                    <input type="password" id="mqttPassword" placeholder="********">
+                </div>
+            </div>
+            <button class="btn-global" onclick="saveMqttConfig()" style="margin-top: 12px;">💾 LƯU CẤU HÌNH MQTT</button>
+        </div>
+    </div>
+
+    <div id="tab-devices" class="tab-content">
+        <div class="add-device-form">
+            <input type="text" id="newBoxId" placeholder="ID (vd: box_s905w_01)">
+            <input type="text" id="newBoxName" placeholder="Tên (vd: Cụm Loa Thôn A)">
+            <button class="btn-add" onclick="addBox()">➕ Thêm TB</button>
+        </div>
+        <div id="box-list-container"></div>
+    </div>
+</div>
+
+<div id="install-card" class="install-card" role="dialog" aria-live="polite">
+    <div class="install-card__top">
+        <div class="install-card__icon">📲</div>
+        <div>
+            <h3 class="install-card__title" id="install-title">Cài đặt ứng dụng</h3>
+            <p class="install-card__subtitle" id="install-subtitle">Mở nhanh từ màn hình chính như một app native.</p>
+        </div>
+        <button class="install-card__close" onclick="dismissInstallCard()" aria-label="Đóng">✕</button>
+    </div>
+    <div class="install-card__actions">
+        <button id="install-action-btn" class="install-btn install-btn--primary" onclick="handleInstallAction()">Cài đặt</button>
+        <button class="install-btn install-btn--ghost" onclick="dismissInstallCard()">Để sau</button>
+    </div>
+    <div id="ios-instructions" class="ios-instructions" style="display:none;">
+        <strong>Trên iPhone / iPad</strong>
+        <ol>
+            <li>Nhấn biểu tượng chia sẻ ở thanh công cụ.</li>
+            <li>Chọn “Add to Home Screen” hoặc “Thêm vào Màn hình chính”.</li>
+            <li>Mở app từ icon mới trên màn hình chính.</li>
+        </ol>
+    </div>
+</div>
+
+<script>
+    function openTab(evt, tabName) {
+        let i, tabcontent = document.getElementsByClassName("tab-content");
+        for (i = 0; i < tabcontent.length; i++) tabcontent[i].classList.remove("active");
+        let tablinks = document.getElementsByClassName("tab-btn");
+        for (i = 0; i < tablinks.length; i++) tablinks[i].classList.remove("active");
+        document.getElementById(tabName).classList.add("active");
+        evt.currentTarget.classList.add("active");
+    }
+
+    function playManualNoJump() { sendControl('play', document.getElementById('targetBox').value, document.getElementById('streamUrl').value.trim()); }
+    function playQuick(url) { document.getElementById('streamUrl').value = url; sendControl('play', document.getElementById('targetBox').value, url); }
+
+    async function loadMqttConfig() {
+        try {
+            const res = await fetch('/api/mqtt-config');
+            const data = await res.json();
+            const cfg = data.mqttConfig || {};
+            document.getElementById('mqttHost').value = cfg.host || '';
+            document.getElementById('mqttPort').value = cfg.port || '';
+            document.getElementById('mqttProtocol').value = cfg.protocol || 'mqtt';
+            document.getElementById('mqttUsername').value = cfg.username || '';
+            document.getElementById('mqttTopicPrefix').value = cfg.topicPrefix || 'daivietpda';
+            document.getElementById('mqttPassword').value = cfg.password || '';
+        } catch (e) { console.error(e); }
+    }
+
+    async function saveMqttConfig() {
+        const payload = {
+            host: document.getElementById('mqttHost').value.trim(),
+            port: document.getElementById('mqttPort').value.trim(),
+            protocol: document.getElementById('mqttProtocol').value.trim(),
+            username: document.getElementById('mqttUsername').value.trim(),
+            topicPrefix: document.getElementById('mqttTopicPrefix').value.trim(),
+            password: document.getElementById('mqttPassword').value
+        };
+        const res = await fetch('/api/mqtt-config', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('Đã lưu cấu hình MQTT Broker. Hệ thống đang kết nối lại.');
+        } else {
+            alert('Không thể lưu cấu hình MQTT.');
+        }
+    }
+
+    let currentBoxHash = "", currentChannelHash = "", currentSchedHash = "";
+    let globalBoxes = [], globalChannels = [];
+
+    // ĐỒNG BỘ THIẾT BỊ
+    async function loadBoxes() {
+        try {
+            const res = await fetch('/api/boxes'); const data = await res.json();
+            if (data.lastPlayedUrl) document.getElementById('lastUrlMarquee').innerText = data.lastPlayedUrl;
+            globalBoxes = data.boxes;
+            
+            const newHash = JSON.stringify(globalBoxes.map(b => ({id: b.id, name: b.name})));
+            if (newHash !== currentBoxHash) {
+                currentBoxHash = newHash;
+                const container = document.getElementById('box-list-container');
+                const targetSelect = document.getElementById('targetBox');
+                const schedTarget = document.getElementById('schedTarget');
+                
+                const curSel = targetSelect.value;
+                const curSchedSel = schedTarget.value;
+
+                container.innerHTML = '';
+                targetSelect.innerHTML = '<option value="ALL">📢 Phát ĐỒNG LOẠT tất cả các khu</option>';
+                schedTarget.innerHTML = '<option value="ALL">📢 Toàn bộ thiết bị</option>';
+
+                globalBoxes.forEach(box => {
+                    container.innerHTML += `
+                        <div class="box-card">
+                            <div class="box-actions">
+                                <button class="btn-mini" onclick="editBox('${box.id}', '${box.name}')">✏️</button>
+                                <button class="btn-mini" onclick="deleteBox('${box.id}', '${box.name}')">🗑️</button>
+                            </div>
+                            <div class="box-info">
+                                <span class="badge ${box.online ? 'online' : ''}" id="badge-${box.id}"></span>
+                                <span class="box-name">${box.name}</span>
+                            </div>
+                            <div class="box-controls">
+                                <div class="vol-container">🔊<input type="range" class="vol-slider" min="0" max="100" value="100" onchange="changeVolume('${box.id}', this.value)"></div>
+                                <button class="btn-reboot" onclick="rebootBox('${box.id}', '${box.name}')">🔄</button>
+                            </div>
+                        </div>`;
+                    
+                    let opt1 = new Option(`📍 Chỉ phát tại: ${box.name}`, box.id);
+                    let opt2 = new Option(`📍 Chỉ khu: ${box.name}`, box.id);
+                    targetSelect.add(opt1); schedTarget.add(opt2);
+                });
+                targetSelect.value = curSel || 'ALL'; schedTarget.value = curSchedSel || 'ALL';
+            } else {
+                globalBoxes.forEach(box => {
+                    let badge = document.getElementById(`badge-${box.id}`);
+                    if (badge) badge.className = `badge ${box.online ? 'online' : ''}`;
+                });
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    // ĐỒNG BỘ KÊNH NHANH
+    async function loadChannels() {
+        try {
+            const res = await fetch('/api/channels'); const data = await res.json();
+            globalChannels = data.channels;
+            
+            const newHash = JSON.stringify(globalChannels);
+            if (newHash === currentChannelHash) return;
+            currentChannelHash = newHash;
+
+            const container = document.getElementById('channel-list-container');
+            const schedChannel = document.getElementById('schedChannel');
+            
+            const curSchedChan = schedChannel.value;
+            container.innerHTML = '';
+            schedChannel.innerHTML = '<option value="OFF">⛔ Lệnh Tắt Nhạc (OFF)</option>';
+
+            globalChannels.forEach(ch => {
+                container.innerHTML += `
+                    <div class="channel-card">
+                        <div class="channel-main" onclick="playQuick('${ch.url}')">
+                            <span class="channel-title">📻 ${ch.name}</span>
+                            <span class="channel-url-text">${ch.url}</span>
+                        </div>
+                        <div class="channel-actions">
+                            <button class="btn-mini" onclick="editChannel('${ch.id}','${ch.name}','${ch.url}')">✏️</button>
+                            <button class="btn-mini" onclick="deleteChannel('${ch.id}','${ch.name}')">🗑️</button>
+                        </div>
+                    </div>`;
+                schedChannel.add(new Option(`📻 Kênh: ${ch.name}`, ch.url));
+            });
+            schedChannel.value = curSchedChan || 'OFF';
+        } catch (e) { console.error(e); }
+    }
+
+    // ĐỒNG BỘ VÀ XỬ LÝ HẸN GIỜ
+    async function loadSchedules() {
+        try {
+            const res = await fetch('/api/schedules'); const data = await res.json();
+            const schedules = data.schedules;
+            
+            const newHash = JSON.stringify(schedules);
+            if (newHash === currentSchedHash) return;
+            currentSchedHash = newHash;
+
+            const container = document.getElementById('sched-list-container');
+            container.innerHTML = '';
+
+            if(schedules.length === 0) {
+                container.innerHTML = '<p style="text-align:center; color:#999; padding: 10px;">Chưa cấu hình lịch phát tự động nào.</p>';
+                return;
+            }
+
+            const dayNames = {1:"T2", 2:"T3", 3:"T4", 4:"T5", 5:"T6", 6:"T7", 0:"CN"};
+
+            schedules.forEach(s => {
+                let daysString = s.days.map(d => dayNames[d]).join(', ');
+                let targetText = s.target === 'ALL' ? "Tất cả các khu" : (globalBoxes.find(b=>b.id===s.target)?.name || s.target);
+                let sourceText = s.url === 'OFF' ? "⛔ Tắt nhạc hệ thống" : `🎵 Phát: ${s.url}`;
+
+                container.innerHTML += `
+                    <div class="sched-card">
+                        <div class="sched-actions">
+                            <button class="btn-mini" onclick="deleteSchedule('${s.id}', '${s.name}')" style="font-size:15px;">🗑️</button>
+                        </div>
+                        <div class="sched-main">
+                            <span class="sched-title">⏰ [${s.time}] ${s.name}</span>
+                            <span class="sched-details">🎯 <b>Mục tiêu:</b> ${targetText}</span>
+                            <span class="sched-details" style="color:#007bff;">🎛️ ${sourceText}</span>
+                            <span class="sched-details" style="background:#e9ecef; padding:2px 6px; border-radius:4px; margin-top:3px; font-size:11px;">📅 Lặp lại: ${daysString}</span>
+                        </div>
+                    </div>`;
+            });
+        } catch (e) { console.error(e); }
+    }
+
+    async function addSchedule() {
+        const name = document.getElementById('schedName').value.trim();
+        const time = document.getElementById('schedTime').value;
+        const target = document.getElementById('schedTarget').value;
+        const url = document.getElementById('schedChannel').value;
+        
+        let checkedDays = [];
+        document.querySelectorAll('input[name="schedDays"]:checked').forEach(cb => { checkedDays.push(parseInt(cb.value)); });
+
+        if(!name || !time || checkedDays.length === 0) return alert("Vui lòng điền tên, chọn giờ phát và ít nhất 1 ngày lặp lại!");
+
+        const res = await fetch('/api/schedules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, target, url, time, days: checkedDays })
+        });
+        if((await res.json()).success) {
+            document.getElementById('schedName').value = '';
+            loadSchedules();
+        }
+    }
+
+    async function deleteSchedule(id, name) {
+        if(!confirm(`Xóa lịch hẹn giờ tự động [${name}]?`)) return;
+        await fetch(`/api/schedules/${id}`, { method: 'DELETE' });
+        loadSchedules();
+    }
+
+    // Tương tác API cũ giữ nguyên nguyên bản
+    async function addBox() {
+        const id = document.getElementById('newBoxId').value.trim();
+        const name = document.getElementById('newBoxName').value.trim();
+        if(!id || !name) return alert("Nhập đủ ID và Tên!");
+        const res = await fetch('/api/boxes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, name }) });
+        if((await res.json()).success) { document.getElementById('newBoxId').value = ""; document.getElementById('newBoxName').value = ""; loadBoxes(); }
+    }
+    async function editBox(id, old) {
+        const name = prompt("Tên mới:", old); if(!name) return;
+        await fetch(`/api/boxes/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }); loadBoxes();
+    }
+    async function deleteBox(id, name) { if(confirm(`Xóa [${name}]?`)) { await fetch(`/api/boxes/${id}`, { method: 'DELETE' }); loadBoxes(); } }
+
+    async function addChannel() {
+        const name = document.getElementById('newChannelName').value.trim(); const url = document.getElementById('newChannelUrl').value.trim();
+        if(!name || !url) return alert("Nhập đủ tên và URL!");
+        const res = await fetch('/api/channels', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, url }) });
+        if((await res.json()).success) { document.getElementById('newChannelName').value = ""; document.getElementById('newChannelUrl').value = ""; loadChannels(); }
+    }
+    async function editChannel(id, oldN, oldU) {
+        const name = prompt("Tên mới:", oldN); const url = prompt("URL mới:", oldU); if(!name || !url) return;
+        await fetch(`/api/channels/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, url }) }); loadChannels();
+    }
+    async function deleteChannel(id, name) { if(confirm(`Xóa kênh [${name}]?`)) { await fetch(`/api/channels/${id}`, { method: 'DELETE' }); loadChannels(); } }
+
+    async function sendControl(action, target, url = '', volume = 100) {
+        try {
+            if (action === 'play') {
+                const player = document.getElementById('localPlayer');
+                if (url === '' || url === 'OFF') { player.pause(); player.src = ''; }
+                else { player.src = url; player.play().catch(console.warn); }
+            }
+            await fetch('/api/control', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, target, url, volume: parseInt(volume) }) });
+        } catch(e) { console.error(e); }
+    }
+    function changeVolume(boxId, volValue) { sendControl('volume', boxId, '', volValue); }
+    function rebootBox(boxId, boxName) { if(confirm("Reboot " + boxName + "?")) sendControl('reboot', boxId); }
+
+    let deferredPrompt = null;
+    const installCard = document.getElementById('install-card');
+    const installTitle = document.getElementById('install-title');
+    const installSubtitle = document.getElementById('install-subtitle');
+    const installActionBtn = document.getElementById('install-action-btn');
+    const iosInstructions = document.getElementById('ios-instructions');
+
+    function isIOS() {
+        return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    }
+
+    function isAndroidChrome() {
+        return /Android/i.test(navigator.userAgent) && /Chrome|SamsungBrowser/i.test(navigator.userAgent);
+    }
+
+    function isStandalone() {
+        return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    }
+
+    function showInstallCard(force = false) {
+        if (isStandalone()) return;
+        const dismissed = localStorage.getItem('installCardDismissed') === '1';
+        if (dismissed && !force) return;
+
+        if (isIOS()) {
+            installTitle.textContent = 'Thêm vào Màn hình chính';
+            installSubtitle.textContent = 'Mở app như một ứng dụng riêng trên iPhone/iPad.';
+            installActionBtn.textContent = 'Xem hướng dẫn';
+            installActionBtn.onclick = () => {
+                iosInstructions.style.display = 'block';
+                installActionBtn.textContent = 'Đã hiểu';
+                installActionBtn.onclick = () => hideInstallCard();
+            };
+            iosInstructions.innerHTML = '<strong>Trên iPhone / iPad</strong><ol><li>Nhấn biểu tượng chia sẻ ở thanh công cụ.</li><li>Chọn “Add to Home Screen”.</li><li>Mở app từ biểu tượng trên màn hình chính.</li></ol>';
+        } else if (isAndroidChrome()) {
+            installTitle.textContent = 'Cài đặt trên Android';
+            installSubtitle.textContent = 'Thêm vào màn hình chính để mở nhanh như một ứng dụng.';
+            installActionBtn.textContent = deferredPrompt ? 'Cài đặt ngay' : 'Xem hướng dẫn';
+            installActionBtn.onclick = handleInstallAction;
+            iosInstructions.innerHTML = '<strong>Trên Chrome Android</strong><ol><li>Nhấn nút 3 chấm ở góc trên cùng.</li><li>Chọn “Cài đặt ứng dụng” hoặc “Add to Home Screen”.</li><li>Mở app từ icon mới trên màn hình chính.</li></ol>';
+        } else {
+            installTitle.textContent = 'Cài đặt ứng dụng';
+            installSubtitle.textContent = 'Mở nhanh từ màn hình chính và dùng như app native.';
+            installActionBtn.textContent = deferredPrompt ? 'Cài đặt ngay' : 'Đóng';
+            installActionBtn.onclick = handleInstallAction;
+        }
+
+        iosInstructions.style.display = isIOS() || isAndroidChrome() ? 'block' : 'none';
+        installCard.classList.add('show');
+    }
+
+    function hideInstallCard() {
+        installCard.classList.remove('show');
+    }
+
+    function dismissInstallCard() {
+        localStorage.setItem('installCardDismissed', '1');
+        hideInstallCard();
+    }
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        showInstallCard(true);
+    });
+
+    window.addEventListener('appinstalled', () => {
+        deferredPrompt = null;
+        hideInstallCard();
+    });
+
+    async function handleInstallAction() {
+        if (isIOS() || isAndroidChrome()) {
+            iosInstructions.style.display = 'block';
+            installActionBtn.textContent = 'Đã hiểu';
+            installActionBtn.onclick = hideInstallCard;
+            return;
+        }
+
+        if (!deferredPrompt) {
+            hideInstallCard();
+            alert('Trình duyệt chưa hỗ trợ tính năng cài đặt tự động.');
+            return;
+        }
+
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            hideInstallCard();
+        }
+        deferredPrompt = null;
+    }
+
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js').catch(console.error);
+        });
+    }
+
+    function syncAllData() {
+        loadBoxes();
+        loadChannels();
+        loadSchedules();
+    }
+    loadMqttConfig();
+    syncAllData();
+    setTimeout(() => showInstallCard(), 1800);
+    setInterval(syncAllData, 3000);
+</script>
+</body>
+</html>

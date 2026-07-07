@@ -1,0 +1,7 @@
+{
+    "host": "mqtt-broker",
+    "port": 1883,
+    "protocol": "mqtt",
+    "username": "",
+    "password": ""
+}
