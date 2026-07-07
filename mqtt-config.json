@@ -3,5 +3,6 @@
     "port": 1883,
     "protocol": "mqtt",
     "username": "",
-    "password": ""
+    "password": "",
+    "topicPrefix": "home/audio"
 }

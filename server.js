@@ -74,20 +74,24 @@ loadOrInitAdminAccount();
 
 // --- CẤU HÌNH MQTT BROKER ---
 const MQTT_CONFIG_FILE = path.join(__dirname, 'mqtt-config.json');
-let MQTT_CONFIG = {
-    host: 'localhost',
-    port: 1883,
-    protocol: 'mqtt',
-    username: 'mqtt-user',
-    password: 'matkhaucuaban',
-    topicPrefix: 'home/audio'
-};
+function getDefaultMqttConfig() {
+    return {
+        host: process.env.MQTT_HOST || 'mqtt-broker',
+        port: parseInt(process.env.MQTT_PORT || '1883', 10),
+        protocol: process.env.MQTT_PROTOCOL || 'mqtt',
+        username: process.env.MQTT_USERNAME || '',
+        password: process.env.MQTT_PASSWORD || '',
+        topicPrefix: process.env.MQTT_TOPIC_PREFIX || 'home/audio'
+    };
+}
+
+let MQTT_CONFIG = getDefaultMqttConfig();
 
 function loadMqttConfigFromDB() {
     try {
         if (fs.existsSync(MQTT_CONFIG_FILE)) {
             const parsed = JSON.parse(fs.readFileSync(MQTT_CONFIG_FILE, 'utf8'));
-            MQTT_CONFIG = { ...MQTT_CONFIG, ...parsed };
+            MQTT_CONFIG = { ...getDefaultMqttConfig(), ...parsed };
         } else {
             saveMqttConfigToDB();
         }
@@ -97,7 +101,15 @@ function loadMqttConfigFromDB() {
 }
 
 function saveMqttConfigToDB() {
-    fs.writeFileSync(MQTT_CONFIG_FILE, JSON.stringify(MQTT_CONFIG, null, 4), 'utf8');
+    const normalizedConfig = {
+        ...getDefaultMqttConfig(),
+        ...MQTT_CONFIG,
+        port: parseInt(MQTT_CONFIG.port, 10) || 1883,
+        username: MQTT_CONFIG.username !== undefined ? MQTT_CONFIG.username : '',
+        password: MQTT_CONFIG.password !== undefined ? MQTT_CONFIG.password : ''
+    };
+    MQTT_CONFIG = normalizedConfig;
+    fs.writeFileSync(MQTT_CONFIG_FILE, JSON.stringify(normalizedConfig, null, 4), 'utf8');
 }
 loadMqttConfigFromDB();
 
@@ -162,7 +174,7 @@ function connectMqttBroker() {
     const brokerUrl = `${MQTT_CONFIG.protocol || 'mqtt'}://${MQTT_CONFIG.host}:${MQTT_CONFIG.port}`;
     const connectOptions = {};
     if (MQTT_CONFIG.username) connectOptions.username = MQTT_CONFIG.username;
-    if (MQTT_CONFIG.password !== undefined && MQTT_CONFIG.password !== null) connectOptions.password = MQTT_CONFIG.password;
+    if (MQTT_CONFIG.password !== undefined && MQTT_CONFIG.password !== null && MQTT_CONFIG.password !== '') connectOptions.password = MQTT_CONFIG.password;
 
     console.log(`[MQTT] Đang kết nối tới ${brokerUrl}`);
     mqttClient = mqtt.connect(brokerUrl, connectOptions);
@@ -478,5 +490,6 @@ module.exports = {
     loadAdminAccountFromDB,
     saveAdminAccountToDB,
     setAdminAccount,
-    verifyAdminCredentials
+    verifyAdminCredentials,
+    getDefaultMqttConfig
 };

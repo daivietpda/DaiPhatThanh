@@ -23,6 +23,12 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      MQTT_HOST: mqtt-broker
+      MQTT_PORT: 1883
+      MQTT_PROTOCOL: mqtt
+      MQTT_USERNAME: ""
+      MQTT_PASSWORD: ""
+      MQTT_TOPIC_PREFIX: home/audio
     volumes:
       - ./mqtt-config.json:/app/mqtt-config.json:rw
       - ./boxes.json:/app/boxes.json:rw
