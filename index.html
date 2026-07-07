@@ -45,14 +45,16 @@
         .box-info, .channel-main, .sched-main { flex-grow: 1; display: flex; align-items: center; gap: 8px; padding-right: 50px;}
         .channel-card { align-items: flex-start; min-width: 0; }
         .channel-main { flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; min-width: 0; overflow: hidden; padding-right: 40px; }
-        .sched-main { flex-direction: column; align-items: flex-start; gap: 2px;}
+        .sched-card { align-items: flex-start; overflow: hidden; }
+        .sched-main { flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; min-width: 0; overflow: hidden; padding-right: 40px; }
         
         .badge { width: 12px; height: 12px; border-radius: 50%; background-color: #dc3545; }
         .badge.online { background-color: #28a745; box-shadow: 0 0 8px #28a745; }
         .box-name, .channel-title, .sched-title { font-weight: 700; color: #2c3e50; font-size: 15px; }
         .channel-title, .channel-url-text { width: 100%; overflow-wrap: anywhere; word-break: break-word; }
         .channel-url-text, .sched-details { font-size: 12px; color: #6c757d; }
-        .channel-url-text { white-space: normal; }
+        .channel-url-text, .sched-title, .sched-details { width: 100%; overflow-wrap: anywhere; word-break: break-word; white-space: normal; }
+        .sched-details { line-height: 1.4; }
 
         .days-checkboxes { display: flex; gap: 8px; width: 100%; flex-wrap: wrap; background: #fff; padding: 10px; border-radius: 8px; border: 1px solid #ced4da; margin-top: 5px;}
         .days-checkboxes label { font-size: 13px; font-weight: normal; cursor: pointer; display: flex; align-items: center; gap: 3px;}
@@ -528,7 +530,7 @@
                             <span class="sched-title">⏰ [${s.time}] ${s.name}</span>
                             <span class="sched-details">🎯 <b>Mục tiêu:</b> ${targetText}</span>
                             <span class="sched-details" style="color:#007bff;">🎛️ ${sourceText}</span>
-                            <span class="sched-details" style="background:#e9ecef; padding:2px 6px; border-radius:4px; margin-top:3px; font-size:11px;">📅 Lặp lại: ${daysString}</span>
+                            <span class="sched-details" style="background:#e9ecef; padding:2px 6px; border-radius:4px; margin-top:3px; font-size:11px; display:inline-block; max-width:100%;">📅 Lặp lại: ${daysString}</span>
                         </div>
                     </div>`;
             });
