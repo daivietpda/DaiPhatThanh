@@ -207,10 +207,17 @@ function checkAuth(req, res, next) {
     else res.redirect('/login');
 }
 
-// Routes giao diện cơ bản
-app.get('/login', (req, res) => {
-    const hasAdmin = Boolean(USER_DB && USER_DB.username);
-    res.send(`
+function buildLoginPage(hasAdmin = Boolean(USER_DB && USER_DB.username)) {
+    const registrationForm = hasAdmin ? '' : `
+            <div class="form-separator"></div>
+            <form action="/register" method="POST">
+                <input type="text" name="username" placeholder="Tên tài khoản mới" required />
+                <input type="password" name="password" placeholder="Mật khẩu mới" required />
+                <input type="password" name="confirmPassword" placeholder="Nhập lại mật khẩu" required />
+                <button type="submit">ĐĂNG KÝ TÀI KHOẢN QUẢN TRỊ</button>
+            </form>`;
+
+    return `
         <!DOCTYPE html>
         <html lang="vi">
         <head>
@@ -231,24 +238,22 @@ app.get('/login', (req, res) => {
         <body>
         <div class="login-container">
             <h2>🎙️ AUDIO SYSTEM</h2>
-            <p class="note">Đăng nhập bằng tài khoản quản trị hiện tại.</p>
             <form action="/login" method="POST">
                 <input type="text" name="username" placeholder="Tên đăng nhập" required />
                 <input type="password" name="password" placeholder="Mật khẩu" required />
                 <button type="submit">ĐĂNG NHẬP</button>
             </form>
-            <div class="form-separator"></div>
-            <form action="/register" method="POST">
-                <input type="text" name="username" placeholder="Tên tài khoản mới" required />
-                <input type="password" name="password" placeholder="Mật khẩu mới" required />
-                <input type="password" name="confirmPassword" placeholder="Nhập lại mật khẩu" required />
-                <button type="submit">ĐĂNG KÝ TÀI KHOẢN QUẢN TRỊ</button>
-            </form>
-            <p class="note" style="margin-top: 12px;">${hasAdmin ? 'Tài khoản quản trị đã tồn tại. Bạn có thể đổi tên và mật khẩu sau khi đăng nhập.' : 'Tài khoản quản trị đầu tiên sẽ được tạo tại đây.'}</p>
+            ${registrationForm}
         </div>
         </body>
         </html>
-    `);
+    `;
+}
+
+// Routes giao diện cơ bản
+app.get('/login', (req, res) => {
+    const hasAdmin = Boolean(USER_DB && USER_DB.username);
+    res.send(buildLoginPage(hasAdmin));
 });
 
 app.post('/login', async (req, res) => {
@@ -487,6 +492,7 @@ if (require.main === module) {
 
 module.exports = {
     app,
+    buildLoginPage,
     loadAdminAccountFromDB,
     saveAdminAccountToDB,
     setAdminAccount,

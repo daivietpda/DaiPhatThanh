@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { setAdminAccount, verifyAdminCredentials, loadAdminAccountFromDB } = require('../server');
+const { setAdminAccount, verifyAdminCredentials, loadAdminAccountFromDB, buildLoginPage } = require('../server');
 
 test('registers and verifies admin credentials from a custom file', async () => {
   const tempFile = path.join(os.tmpdir(), `admin-auth-${Date.now()}.json`);
@@ -20,4 +20,10 @@ test('registers and verifies admin credentials from a custom file', async () => 
   assert.equal(await verifyAdminCredentials('superadmin', 'wrong-password', tempFile), false);
 
   fs.unlinkSync(tempFile);
+});
+
+test('hides the registration form when an admin account already exists', () => {
+  const html = buildLoginPage(true);
+  assert.match(html, /ĐĂNG NHẬP/);
+  assert.doesNotMatch(html, /ĐĂNG KÝ TÀI KHOẢN QUẢN TRỊ/);
 });
